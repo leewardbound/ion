@@ -5,14 +5,21 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	nprotoo "github.com/cloudwebrtc/nats-protoo"
 	"github.com/pion/ion/pkg/discovery"
 	"github.com/pion/ion/pkg/log"
 	"github.com/pion/ion/pkg/proto"
 	"github.com/pion/ion/pkg/signal"
 	"github.com/pion/ion/pkg/util"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	statDispatch = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "ion_biz_protoo_recv_msg",
+		Help: "Ion biz server",
+	}, []string{"method", "status"})
 )
 
 // ParseProtoo Unmarshals a protoo payload.
@@ -35,89 +42,65 @@ func Entry(method string, peer *signal.Peer, msg json.RawMessage, accept signal.
 		var msgData proto.CloseMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = clientClose(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "close",
-			}).Inc()
 		}
 	case proto.ClientLogin:
 		var msgData proto.LoginMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = login(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "login",
-			}).Inc()
 		}
 	case proto.ClientJoin:
 		var msgData proto.JoinMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = join(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "join",
-			}).Inc()
 		}
 	case proto.ClientLeave:
 		var msgData proto.LeaveMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = leave(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "leave",
-			}).Inc()
 		}
 	case proto.ClientPublish:
 		var msgData proto.PublishMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = publish(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "publish",
-			}).Inc()
 		}
 	case proto.ClientUnPublish:
 		var msgData proto.UnpublishMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = unpublish(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "unpublish",
-			}).Inc()
 		}
 	case proto.ClientSubscribe:
 		var msgData proto.SubscribeMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = subscribe(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "subscribe",
-			}).Inc()
 		}
 	case proto.ClientUnSubscribe:
 		var msgData proto.UnsubscribeMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = unsubscribe(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "unsubscribe",
-			}).Inc()
 		}
 	case proto.ClientBroadcast:
 		var msgData proto.BroadcastMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = broadcast(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "broadcast",
-			}).Inc()
 		}
 	case proto.ClientTrickleICE:
 		var msgData proto.TrickleMsg
 		if topErr = ParseProtoo(msg, &msgData); topErr == nil {
 			result, topErr = trickle(peer, msgData)
-			statDispatch.With(prometheus.Labels{
-				"method": "trickle",
-			}).Inc()
 		}
 	}
 
+	status := "success"
 	if topErr != nil {
 		reject(topErr.Code, topErr.Reason)
+		status = string(topErr.Reason)
 	} else {
 		accept(result)
 	}
+	statDispatch.With(prometheus.Labels{
+		"status": status,
+		"method": method,
+	})
 }
 
 func getRPCForIslb() (*nprotoo.Requestor, bool) {

@@ -10,6 +10,8 @@ import (
 	"github.com/cloudwebrtc/go-protoo/server"
 	"github.com/pion/ion/pkg/log"
 	"github.com/pion/ion/pkg/proto"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type AcceptFunc peer.AcceptFunc
@@ -27,6 +29,15 @@ var (
 	wsServer *server.WebSocketServer
 	rooms    = make(map[proto.RID]*Room)
 	roomLock sync.RWMutex
+
+	gaugeRooms = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ion_biz_rooms",
+		Help: "The number of rooms open on this biz server",
+	})
+	gaugePeers = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ion_biz_peers",
+		Help: "The number of peers connected to this biz server",
+	})
 )
 
 func Init(host string, port int, cert, key string, bizEntry func(method string, peer *Peer, msg json.RawMessage, accept RespondFunc, reject RejectFunc)) {
@@ -52,12 +63,15 @@ func stat() {
 		if len(rooms) > 0 {
 			print = true
 		}
+		gaugePeers.Set(0)
 		for rid, room := range rooms {
 			info += fmt.Sprintf("room: %s\npeers: %d\n", rid, len(room.GetPeers()))
 			if len(room.GetPeers()) == 0 {
 				delete(rooms, rid)
 			}
+			gaugePeers.Add(float64(len(room.GetPeers())))
 		}
+		gaugeRooms.Set(float64(len(rooms)))
 		roomLock.Unlock()
 		if print {
 			log.Infof(info)
