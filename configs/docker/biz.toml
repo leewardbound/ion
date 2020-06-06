@@ -1,5 +1,6 @@
 [global]
 pprof = ":6060"
+metrics = ":2112"
 
 # internet ip
 addr = "127.0.0.1"

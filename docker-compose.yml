@@ -25,6 +25,7 @@ services:
       - "./configs/docker/biz.toml:/configs/biz.toml"
     ports:
       - 8443:8443
+      - 2112:2112
     networks:
       - ionnet
     depends_on:

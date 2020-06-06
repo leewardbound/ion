@@ -3,12 +3,14 @@ package main
 import (
 	"net/http"
 	_ "net/http/pprof"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	conf "github.com/pion/ion/pkg/conf/biz"
 	"github.com/pion/ion/pkg/discovery"
 	"github.com/pion/ion/pkg/log"
 	"github.com/pion/ion/pkg/node/biz"
 	"github.com/pion/ion/pkg/signal"
+
 )
 
 func init() {
@@ -32,6 +34,17 @@ func main() {
 			}
 		}()
 	}
+	
+	if conf.Global.Metrics != "" {
+		go func() {
+			log.Infof("Serving metrics at %s/metrics", conf.Global.Metrics)
+			http.Handle("/metrics", promhttp.Handler())
+			err := http.ListenAndServe(conf.Global.Metrics, nil)
+			if err != nil {
+				panic(err)
+			}
+		}()
+	}
 
 	serviceNode := discovery.NewServiceNode(conf.Etcd.Addrs, conf.Global.Dc)
 	serviceNode.RegisterNode("biz", "node-biz", "biz-channel-id")
@@ -42,6 +55,7 @@ func main() {
 
 	serviceWatcher := discovery.NewServiceWatcher(conf.Etcd.Addrs, conf.Global.Dc)
 	serviceWatcher.WatchServiceNode("islb", biz.WatchServiceNodes)
+
 
 	defer close()
 	select {}
